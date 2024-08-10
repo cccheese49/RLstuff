@@ -10,9 +10,9 @@ class Actor(nn.Module):
     def __init__(self, state_dim, action_dim):
         super().__init__()
         self.model = nn.Sequential(
-            nn.Linear(state_dim, 24),
+            nn.Linear(state_dim, 300),
             nn.ReLU(),
-            nn.Linear(24, action_dim),
+            nn.Linear(300, action_dim),
             nn.Softmax(dim=0)
         )
 
@@ -24,9 +24,9 @@ class Critic(nn.Module):
     def __init__(self, state_dim):
         super().__init__()
         self.model = nn.Sequential(
-            nn.Linear(state_dim, 24),
+            nn.Linear(state_dim, 300),
             nn.ReLU(),
-            nn.Linear(24, 1)
+            nn.Linear(300, 1)
         )
 
     def forward(self, state):
@@ -42,14 +42,13 @@ if __name__ == "__main__":
     env = gym.make('CartPole-v0', render_mode="human")
 
     actor = Actor(env.observation_space.shape[0], env.action_space.n).cuda()
-    optim = torch.optim.Adam(actor.parameters())
     critic = Critic(env.observation_space.shape[0]).cuda()
 
     ppo = PPO(env, actor, critic)
     ppo.train()
 
     fig = plt.figure()
-    plt.plot(np.arange(0, len(scores)), scores)
+    plt.plot(np.arange(0, len(ppo.scores)), ppo.scores)
     plt.show()
     # with torch.no_grad():
     #   obs, _ = env.reset()

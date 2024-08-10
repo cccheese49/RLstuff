@@ -11,10 +11,12 @@ class PPO:
         self.env = env
         self.actor = actor_model
         self.critic = critic_model
+        self.scores = []
 
     def rollout(self):
         obs, _ = self.env.reset()
         obs = to_tensor(obs)
+        prev_obs = torch.zeros_like(obs)
         batch_obs = []
         episode_done = False
         logprobs = []
@@ -23,7 +25,7 @@ class PPO:
         while not episode_done:
             batch_obs.append(obs.detach())
             dist = torch.distributions.Categorical(
-                probs=self.actor(obs.clone()))
+                probs=self.actor(obs))
             action = dist.sample()
             batch_acts.append(action.detach())
             new_obs, reward, episode_done, _, _ = self.env.step(
@@ -31,8 +33,11 @@ class PPO:
 
             logprobs.append(dist.log_prob(action).detach())
             rewards.append(reward)
+            prev_obs = obs
             obs = to_tensor(new_obs)
             self.env.render()
+
+        self.scores.append(sum(rewards))
         logprobs = torch.stack(logprobs)
         batch_obs = torch.stack(batch_obs)
         batch_acts = torch.stack(batch_acts)
@@ -45,14 +50,15 @@ class PPO:
         return batch_obs, batch_acts, batch_rtgs, logprobs
 
     def train(self):
-        for i in range(1):
+        for i in range(100):
             torch.autograd.set_detect_anomaly(True)
             actor_optim = torch.optim.Adam(self.actor.parameters())
             critic_optim = torch.optim.Adam(self.critic.parameters())
             batch_obs, batch_acts, batch_rtgs, batch_logprobs = self.rollout()
-            V = self.critic(batch_obs).squeeze()
-            A = batch_rtgs - V.detach()
             for _ in range(5):
+
+                V = self.critic(batch_obs).squeeze()
+                A = batch_rtgs - V.detach()
                 dist = torch.distributions.Categorical(
                     probs=self.actor(batch_obs))
                 curr_log_probs = dist.log_prob(batch_acts)
@@ -67,5 +73,5 @@ class PPO:
 
                 critic_optim.zero_grad()
                 critic_loss = nn.MSELoss()(V, batch_rtgs.detach())
-                critic_loss.backward(retain_graph=True)
+                critic_loss.backward()
                 critic_optim.step()
